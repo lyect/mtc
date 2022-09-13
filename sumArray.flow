@@ -1,0 +1,13 @@
+import runtime;
+
+// ##########################
+// Sum of numbers in an array
+// ##########################
+
+main(){
+	arr : [int] = [-1, -2, -3];
+
+	a = fold(arr, 0, \x, y -> x + y);
+
+	println(a);
+}
