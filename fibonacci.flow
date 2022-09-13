@@ -1,0 +1,84 @@
+import runtime;
+
+// #################
+// Fibonacci numbers
+// #################
+
+// =================
+// Naive realization
+// =================
+
+fib_a(n : int) -> [int] {
+	if (n == 0) {
+		[0]
+	}
+	else if (n == 1) {
+		[0, 1]
+	}
+	else {
+		f : [int] = fib_a(n - 1);
+		newf : int = f[n - 1] + f[n - 2];
+		concat(f, [newf]);
+	}
+}
+
+// =========
+// Tail call
+// =========
+
+// f   - array with the numbers generated in the previous steps
+// cur - number of the Fibonacci sequence member
+// n   - size of the resulting array
+
+fib_b_tc(f : [int], cur : int, n : int) -> [int]{
+	if (cur == n + 1) {
+		f
+	}
+	else {
+		newf : int = f[cur - 1] + f[cur - 2];
+		fib_b_tc(concat(f, [newf]), cur + 1, n);
+	}
+}
+
+fib_b(n : int) -> [int] {
+	if (n == 0){
+		[0]
+	}
+	else {
+		fib_b_tc([0, 1], 2, n);
+	}
+}
+
+// ================
+// Array references
+// ================
+
+// arr - reference to the resulting array
+// n - number of the Fibonacci sequence member to be calculated
+
+fib_c_ar(arr : ref [int], n : int) -> void {
+	if (length(^arr) - 1 != n){
+		fib_c_ar(arr, n - 1);
+		newf : int = ^arr[n - 1] + ^arr[n - 2];
+		refArrayPush(arr, newf);
+	}
+}
+
+fib_c(n : int) -> [int] {
+	if (n == 0) {
+		[0]
+	}
+	else if (n == 1) {
+		[0, 1]
+	}
+	else {
+		farr : ref [int] = ref [0, 1];
+		fib_c_ar(farr, n);
+		^farr
+	}
+}
+
+main(){
+	arr : [int] = fib_c(10);
+	println(arr);
+}
