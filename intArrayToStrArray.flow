@@ -1,0 +1,12 @@
+import runtime;
+import string;
+
+// #############################################
+// Convert array of integers to array of strings
+// #############################################
+
+main(){
+	arr_int : [int] = [1, 2, 3];
+	arr_str = map(arr_int, \i -> i2s(i));
+	println("[\"" + strGlue(arr_str, "\", \"") + "\"]");
+}
