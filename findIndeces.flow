@@ -1,0 +1,79 @@
+import runtime;
+import ds/tree;
+
+// ########################################################
+// Find all pairs of indeces such that arr[i] + arr[j] == m
+// ########################################################
+
+// ==================
+// O(n^2) realization
+// ==================
+
+inds_n2(arr : [int], m : int) -> [Pair<int, int>] {
+	mapiConcat(
+		arr,
+		\i, elem_i -> {
+			mapiConcat(
+				arr,
+				\j, elem_j -> {
+					if (i < j && elem_i + elem_j == m) {
+						[Pair(i, j)]
+					}
+					else {
+						[]
+					}
+				}
+			)
+		}
+	)
+}
+
+// =======================
+// O(n * logn) realization
+// =======================
+
+inds_nlogn(arr : [int], m : int) -> [Pair<int, int>] {
+	
+	// Making a lookup tree, where 
+	//		key :  int  - number,
+	//		val : [int] - indeces by which this number is stored.
+
+	bin_tree : Tree<int, [int]> = foldi(
+		arr,
+		makeTree(),
+		\i, tree, elem -> {
+			treePushToArrayValue(
+				tree, elem, i
+			);
+		}
+	);
+
+	// For each number in array find appropriate bucket in binary tree
+	// 	(which is stored in node with key "m - number").
+	// Then append generated array of pairs to the resulting array.
+
+	mapiConcat(
+		arr,
+		\i, elem -> {
+			mapConcat(
+				lookupTreeDef(bin_tree, m - elem, []),
+				\bucket_elem -> {
+					if (i < bucket_elem) {
+						[Pair(i, bucket_elem)]
+					}
+					else {
+						[]
+					}
+				}
+			)
+		}
+	)
+}
+
+main(){
+	arr : [int] = [1, 1, 1, 1];
+
+	println(inds_nlogn(arr, 2));
+
+	get
+}
