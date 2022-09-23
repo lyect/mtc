@@ -50,6 +50,7 @@ NegConst = ("-" Number)$nc ws { Double(s2d($nc)) };
 //	.123
 //	123.
 Number = digit+ ("." digit+)?;
+
 // Variable = any combination of letters and digits. But there is
 //	one rule. Name of the variable must starts with a letter.
 Variable = letter (letter | digit)*;
