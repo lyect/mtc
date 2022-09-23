@@ -1,0 +1,26 @@
+import arithm_parser/parser_headFile;
+import arithm_parser/parser_print;
+import arithm_parser/parser_evaluation;
+import arithm_parser/parser_simplification;
+
+main() {
+	expression : string = strsubsmart(readUntil("\n"), 0, -1);
+
+	parsedExpression : flow = parse(expression);
+
+	println("Expression to string:\n");
+	println(expression2string(parsedExpression));
+
+	println("Pretty print of an expression:\n");
+	prettyPrintExpression(parsedExpression);
+
+	println("Simplified derivative of the expression:\n");
+	prettyPrintExpression(simplifyExpression(takeDerivative(parsedExpression)));
+
+	println("Simplifying of an expression:\n");
+	simplifiedExpression : flow = simplifyExpression(parsedExpression);
+	prettyPrintExpression(simplifiedExpression);
+	
+	println("Evaluating of an expression:\n");
+	println("\t" + d2s(evaluateExpression(simplifiedExpression)));
+}
