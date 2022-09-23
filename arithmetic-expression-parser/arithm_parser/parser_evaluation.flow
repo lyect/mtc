@@ -1,0 +1,343 @@
+import arithm_parser/parser_headFile;
+
+export {
+	takeDerivative(expression : flow) -> flow;
+	evaluateExpression(expression : flow) -> double;
+}
+
+takeDerivative(expression : flow) -> flow {
+	switch (expression : Exp) {
+		Double(d): {
+			Double(d);
+		}
+		Var(name): {
+			Var(name);
+		}
+		Add(e1, e2): {
+			Add(takeDerivative(e1), takeDerivative(e2));
+		}
+		Sub(e1, e2): {
+			Sub(takeDerivative(e1), takeDerivative(e2));
+		}
+		Mul(e1, e2): {
+			Mul(takeDerivative(e1), takeDerivative(e2));
+		}
+		Div(e1, e2): {
+			Div(takeDerivative(e1), takeDerivative(e2));
+		}
+		Pow(e1, e2): {
+			Pow(takeDerivative(e1), takeDerivative(e2));
+		}
+		Der(e1, e2): {
+			if (expressionIsDouble(e1)) {
+				Double(0.0);
+			}
+			else if (expressionIsVar(e1)) { 
+				if (expressionsAreEqual(e1, e2)) { // d(x) / dx = 1
+					Double(1.0);
+				}
+				else { // d(y) / dx = 0
+					Double(0.0);
+				}
+			}
+			else if (expressionIsAdd(e1)) { // (f + g)' = f' + g'
+				e11 : flow = getFirstOperand(e1);
+				e12 : flow = getSecondOperand(e1);
+				Add(takeDerivative(Der(e11, e2)), takeDerivative(Der(e12, e2)));
+			}
+			else if (expressionIsSub(e1)) { // (f - g)' = f' - g'
+				e11 : flow = getFirstOperand(e1);
+				e12 : flow = getSecondOperand(e1);
+				Add(takeDerivative(Der(e11, e2)), takeDerivative(Der(e12, e2)));
+			}
+			else if (expressionIsMul(e1)) {
+				e11 : flow = getFirstOperand(e1);
+				e12 : flow = getSecondOperand(e1);
+
+				if (!expressionIsDouble(e11) &&
+					!expressionIsDouble(e12) &&
+					!expressionIsVar(e11) &&
+					!expressionIsVar(e12)
+				) { // (f*g)' = f'*g + f*g'
+					derE11 : flow = takeDerivative(Der(e11, e2));
+					derE12 : flow = takeDerivative(Der(e12, e2));
+
+					Add(Mul(derE11, e12), Mul(e11, derE12));
+				}
+				else if ( expressionIsDouble(e11) &&
+						 !expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) { // (a*f)' = f'*a
+					derE12 : flow = takeDerivative(Der(e12, e2));
+
+					Mul(derE12, e11);
+				}
+				else if (!expressionIsDouble(e11) &&
+						  expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) { // (f*a)' = f'*a
+					derE11 : flow = takeDerivative(Der(e11, e2));
+
+					Mul(derE11, e12);
+				}
+				else if ( expressionIsDouble(e11) &&
+						  expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) { // (a*b)' = 0
+					Double(0.0);
+				}
+				else if (!expressionIsDouble(e11) &&
+						 !expressionIsDouble(e12) &&
+						  expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) {
+					derE12 : flow = takeDerivative(Der(e12, e2));
+					if (expressionsAreEqual(e11, e2)) { // (x*f)' = f + f'*x
+						Add(e12, Mul(derE12, e11));
+					}
+					else { // (y*f)' = f'*y
+						Mul(derE12, e11);
+					}
+				}
+				else if (!expressionIsDouble(e11) &&
+						  expressionIsDouble(e12) &&
+						  expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) { // (x*a)' = a
+					e12;
+				}
+				else if (!expressionIsDouble(e11) &&
+						 !expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						  expressionIsVar(e12)
+				) { 
+					derE11 : flow = takeDerivative(Der(e11, e2));
+					if (expressionsAreEqual(e12, e2)) { // (f*x)' = f'*x + f
+						Add(Mul(derE11, e12), e11);
+					}
+					else { // (f*y)' = f'*y
+						Mul(derE11, e12);
+					}
+				}
+				else if ( expressionIsDouble(e11) &&
+						 !expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						  expressionIsVar(e12)
+				) { // (a*x)' = a
+					e11;
+				}
+				else { // e11 and e12 are Var's
+					if (expressionsAreEqual(e11, e2) && expressionsAreEqual(e12, e2)) { // (x*x)' = 2*x
+						Mul(e2, Double(2.0));
+					}
+					else if (expressionsAreEqual(e11, e2)) { // (x*y)' = y
+						e12;
+					}
+					else if (expressionsAreEqual(e12, e2)) { // (y*x)' = y
+						e11;
+					}
+					else { // (y*z)' = 0
+						Double(0.0);
+					}
+				}
+
+			}
+			else if (expressionIsDiv(e1)) {
+				e11 : flow = getFirstOperand(e1);
+				e12 : flow = getSecondOperand(e1);
+
+				if (!expressionIsDouble(e11) &&
+					!expressionIsDouble(e12) &&
+					!expressionIsVar(e11) &&
+					!expressionIsVar(e12)
+				) { // (f/g)' = (f'*g - f*g')/(g^2)
+					derE11 : flow = takeDerivative(Der(e11, e2));
+					derE12 : flow = takeDerivative(Der(e12, e2));
+
+					Div(Sub(Mul(derE11, e12), Mul(e11, derE12)), Pow(e12, Double(2.0)));
+				}
+				else if ( expressionIsDouble(e11) &&
+						 !expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) { // (a/f)' = (0 - a*f')/(f^2)
+					derE12 : flow = takeDerivative(Der(e12, e2));
+					Div(Sub(Double(0.0), Mul(e11, derE12)), Pow(e12, Double(2.0)));
+				}
+				else if (!expressionIsDouble(e11) &&
+						  expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) { // (f/a)' = (f'*a)/(a^2)
+					derE11 : flow = takeDerivative(Der(e11, e2));
+					Div(Mul(derE11, e12), Pow(e12, Double(2.0)));
+				}
+				else if ( expressionIsDouble(e11) &&
+						  expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) { // (a/b)' = 0
+					Double(0.0);
+				}
+				else if (!expressionIsDouble(e11) &&
+						 !expressionIsDouble(e12) &&
+						  expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) { // (x/f)' = (f - f'*x)/(f^2)
+					derE12 : flow = takeDerivative(Der(e12, e2));
+					Div(Sub(e12, Mul(derE12, e11)), Pow(e12, Double(2.0)))
+				}
+				else if (!expressionIsDouble(e11) &&
+						  expressionIsDouble(e12) &&
+						  expressionIsVar(e11) &&
+						 !expressionIsVar(e12)
+				) { // (x/a)' = 1/a
+					Div(Double(1.0), e12);
+				}
+				else if (!expressionIsDouble(e11) &&
+						 !expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						  expressionIsVar(e12)
+				) { // (f/x)' = (f'*x - f)/(x^2)
+					derE11 : flow = takeDerivative(Der(e11, e2));
+					Div(Sub(Mul(derE11, e12), e11), Pow(e12, Double(2.0)));
+				}
+				else if ( expressionIsDouble(e11) &&
+						 !expressionIsDouble(e12) &&
+						 !expressionIsVar(e11) &&
+						  expressionIsVar(e12)
+				) { // (a/x)' = (0 - a)/(x^2)
+					Div(Sub(Double(0.0), e11), Pow(e12, Double(2.0)));
+				}
+				else { // e11 and e12 are Var's
+					if (expressionsAreEqual(e11, e2) && expressionsAreEqual(e12, e2)) { // (x/x)' = 0
+						Double(0.0);
+					}
+					else if (expressionsAreEqual(e11, e2)) { // (x/y)' = 1/y
+						Div(Double(1.0), e12);
+					}
+					else if (expressionsAreEqual(e12, e2)) { // (y/x)' = (0 - y)/x
+						Div(Sub(Double(0.0), e11), e12);
+					}
+					else { // (y*z)' = 0
+						Double(0.0);
+					}
+				}
+			}
+			else if (expressionIsPow(e1)) {
+				b : flow = getFirstOperand(e1);
+				e : flow = getSecondOperand(e1);
+				if (!expressionIsDouble(b) && !expressionIsDouble(e)) { // (f^f)' is prohibited
+					Double(0.0 / 0.0);
+				}
+				else if (expressionIsDouble(b)) {
+					if (expressionIsDouble(e)) { // (a^b)' = 0
+						Double(0.0);
+					}
+					else if (expressionIsVar(e)) {
+						if (expressionsAreEqual(e, e2)) { // (a^x)' = a^x * ln(a)
+							Mul(e1, Double(log(b)));
+						}
+						else { // (a^y)' = 0
+							Double(0.0);
+						}
+					}
+					else { // (a^f)' = a^f * ln(a) * f'
+						Mul(Mul(e1, Double(log(b))), takeDerivative(Der(e, e2)));
+					}
+				}
+				else { // exponent is Double; (f^a)' = f^(a-1) * f' * a
+					Mul(Mul(Pow(b, decrementExpression(e)), takeDerivative(Der(b, e2))), e);
+				}
+			}
+			else { // e1 have "Der" type
+				takeDerivative(Der(takeDerivative(e1), e2));
+			}
+		}
+	}
+}
+
+makeVariableTree(expression : flow, tree : Tree<string, double>) -> Tree<string, double> {
+	switch (expression : Exp) {
+		Double(d): {
+			tree;
+		}
+		Var(name): {
+			if (!containsKeyTree(tree, name)) {
+				println("Enter the \"" + name + "\"");
+				print(name + "=");
+				varValue : double = s2d(strsubsmart(readUntil("\n"), 0, -1));
+				setTree(tree, name, varValue);
+			}
+			else {
+				tree;
+			}
+		}
+		Der(e1, e2): {
+			tree; // unreachable since all derivative were taken before
+		}
+		// When parsing of e1 ends, t1 will contain all
+		//	the variables from e1.
+		// So, t1 is going to be passed as a parameter to the
+		//	parsing of the right branch.
+		// When parsing of e2 ends, t2 will contain all
+		//	the variables from e1 and e2.
+		default: {
+			e1 : flow = getFirstOperand(expression);
+			e2 : flow = getSecondOperand(expression);
+			t1: Tree<string, double> = makeVariableTree(e1, tree);
+			t2: Tree<string, double> = makeVariableTree(e2, t1);
+			t2;
+		}
+	}
+}
+
+evaluateExpressionWithVariables(expression : flow, variables : Tree<string, double>) -> double {
+	switch (expression : Exp) {
+		Double(d): {
+			d;
+		}
+		Var(name): {
+			// 0 is unreachable since all variables were initialized before.
+			// This function is used because I do not want to mess up with Maybe.
+			lookupTreeDef(variables, name, 0.0);
+		}
+		Add(e1, e2): {
+			evalExp1 : double = evaluateExpressionWithVariables(e1, variables);
+			evalExp2 : double = evaluateExpressionWithVariables(e2, variables);
+			evalExp1 + evalExp2;
+		}
+		Sub(e1, e2): {
+			evalExp1 : double = evaluateExpressionWithVariables(e1, variables);
+			evalExp2 : double = evaluateExpressionWithVariables(e2, variables);
+			evalExp1 - evalExp2;
+		}
+		Mul(e1, e2): {
+			evalExp1 : double = evaluateExpressionWithVariables(e1, variables);
+			evalExp2 : double = evaluateExpressionWithVariables(e2, variables);
+			evalExp1 * evalExp2;
+		}
+		Div(e1, e2): {
+			evalExp1 : double = evaluateExpressionWithVariables(e1, variables);
+			evalExp2 : double = evaluateExpressionWithVariables(e2, variables);
+			evalExp1 / evalExp2;
+		}
+		Pow(e1, e2): {
+			evalExp1 : double = evaluateExpressionWithVariables(e1, variables);
+			evalExp2 : double = evaluateExpressionWithVariables(e2, variables);
+			dpow(evalExp1, evalExp2);
+		}
+		Der(e1, e2): {
+			0.0; // unreachable since all derivative were taken before
+		}
+	}
+}
+
+evaluateExpression(expression : flow) -> double {
+	derExpression : flow = takeDerivative(expression);
+	variables : Tree<string, double> = makeVariableTree(derExpression, makeTree());
+	evaluateExpressionWithVariables(derExpression, variables);	
+}

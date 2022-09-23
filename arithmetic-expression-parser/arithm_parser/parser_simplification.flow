@@ -1,0 +1,215 @@
+import arithm_parser/parser_headFile;
+
+export {
+	simplifyExpression(expression : flow) -> flow;
+}
+
+// This function simplifies expression by using some rules which
+//	are described near by "if" statements.
+// This function can not use associative property in its simplifications.
+// This function can not find common factor of two polynomials.
+// This function can not correctly process the (0 / 0) expression. It
+//	returns NaN. If you do not check it before simplifying, you may
+//	have strange errors after.
+simplifyExpression(expression : flow) -> flow {
+	switch (expression : Exp) {
+		Double(d): {
+			expression;
+		}
+		Var(name): {
+			expression;
+		}
+		Add(e1, e2): {
+
+			simplifiedE1 : flow = simplifyExpression(e1);
+			simplifiedE2 : flow = simplifyExpression(e2);
+
+			if (expressionIsZero(simplifiedE1)) { // 0 + a -> a
+				simplifiedE2;
+			}
+			else if (expressionIsZero(simplifiedE2)) { // a + 0 -> a
+				simplifiedE1;
+			}
+			else {
+				Add(simplifiedE1, simplifiedE2);
+			}
+		}
+		Sub(e1, e2): {
+			simplifiedE1 : flow = simplifyExpression(e1);
+			simplifiedE2 : flow = simplifyExpression(e2);
+
+			if (expressionsAreEqual(simplifiedE1, simplifiedE2)) { // a - a -> 0
+				Double(0.0);
+			}
+			else if (expressionIsZero(simplifiedE2)) { // a - 0 -> a
+				simplifiedE1;                          // -a - 0 -/-> -a, because
+			}                                          // there is no "-Term" term
+			else {
+				Sub(simplifiedE1, simplifiedE2);
+			}
+		}
+		Mul(e1, e2): {
+			simplifiedE1 : flow = simplifyExpression(e1);
+			simplifiedE2 : flow = simplifyExpression(e2);
+
+			if (expressionIsZero(simplifiedE1)) { // 0 * a -> 0
+				Double(0.0);
+			}
+			else if (expressionIsZero(simplifiedE2)) { // a * 0 -> 0
+				Double(0.0);
+			}
+			else if (expressionIsOne(simplifiedE1)) { // 1 * a -> a
+				simplifiedE2;
+			}
+			else if (expressionIsOne(simplifiedE2)) { // a * 1 -> a
+				simplifiedE1;
+			}
+			else if (expressionIsPow(simplifiedE1)) {
+				if (expressionsAreEqual(getFirstOperand(simplifiedE1), simplifiedE2)) { // a ^ n * a -> a ^ (n + 1)
+					incrementedExponent : flow = incrementExpression(getSecondOperand(simplifiedE1));
+					newExpression : flow = Pow(simplifiedE2, incrementedExponent);
+					simplifyExpression(newExpression);
+				}
+				else {
+					Mul(simplifiedE1, simplifiedE2);
+				}
+			}
+			else if (expressionIsPow(simplifiedE2)) {
+				if (expressionsAreEqual(getFirstOperand(simplifiedE2), simplifiedE1)) { // a * a ^ n -> a ^ (n + 1)
+					incrementedExponent : flow = incrementExpression(getSecondOperand(simplifiedE2));
+					newExpression : flow = Pow(simplifiedE1, incrementedExponent);
+					simplifyExpression(newExpression);
+				}
+				else {
+					Mul(simplifiedE1, simplifiedE2);
+				}
+			}
+			else if (expressionsAreEqual(simplifiedE1, simplifiedE2)) { // a * a -> a ^ 2
+				newExpression : flow = Pow(simplifiedE1, Double(2.0));
+				simplifyExpression(newExpression);
+			}
+			else if (expressionIsDiv(simplifiedE1) && expressionIsDiv(simplifiedE2)) { // (a / b) * (c / d) -> (a * c) / (b * d)
+
+				e11 : flow = getFirstOperand(simplifiedE1);
+				e12 : flow = getSecondOperand(simplifiedE1);
+				e21 : flow = getFirstOperand(simplifiedE2);
+				e22 : flow = getSecondOperand(simplifiedE1);
+
+				newExpression : flow = Div(Mul(e11, e21), Mul(e12, e22));
+				simplifyExpression(newExpression);
+			}
+			else if (expressionIsDiv(simplifiedE1)) { // (a / b) * c -> (a * c) / b
+				e11 : flow = getFirstOperand(simplifiedE1);
+				e12 : flow = getSecondOperand(simplifiedE1);
+
+				newExpression : flow = Div(Mul(e11, simplifiedE2), e12);
+				simplifyExpression(newExpression);
+			}
+			else if (expressionIsDiv(simplifiedE2)) { // a * (b / c) -> (a * b) / c
+				e21 : flow = getFirstOperand(simplifiedE2);
+				e22 : flow = getSecondOperand(simplifiedE2);
+
+				newExpression : flow = Div(Mul(simplifiedE1, e21), e22);
+				simplifyExpression(newExpression);
+			}
+			else {
+				Mul(simplifiedE1, simplifiedE2);
+			}
+		}
+		Div(e1, e2): {
+			simplifiedE1 : flow = simplifyExpression(e1);
+			simplifiedE2 : flow = simplifyExpression(e2);
+
+			if (expressionIsOne(simplifiedE2)) { // a / 1 -> a
+				simplifiedE1;
+			}
+			else if (expressionIsZero(simplifiedE1)) { // 0 / a -> 0
+				if (expressionIsZero(simplifiedE2)) {
+					Double(0.0 / 0.0); // returns NaN and further actions are your problems :)
+				}
+				else {
+					Double(0.0);
+				}
+			}
+			else if (expressionsAreEqual(simplifiedE1, simplifiedE2)) { // a / a -> 1
+				if (expressionIsZero(simplifiedE2)) {
+					Double(0.0 / 0.0); // returns NaN and further actions are your problems :)
+				}
+				else {
+					Double(1.0);
+				}
+			}
+			else if (expressionIsDiv(simplifiedE1) && expressionIsDiv(simplifiedE2)) { // (a / b) / (c / d) -> (a * d) / (b * c)
+				e11 : flow = getFirstOperand(simplifiedE1);
+				e12 : flow = getSecondOperand(simplifiedE1);
+				e21 : flow = getFirstOperand(simplifiedE2);
+				e22 : flow = getSecondOperand(simplifiedE2);
+
+				newExpression : flow = Div(Mul(e11, e22), Mul(e12, e21));
+
+				simplifyExpression(newExpression);
+			}
+			else if (expressionIsDiv(simplifiedE1)) { // (a / b) / c -> a / (b * c)
+				e11 : flow = getFirstOperand(simplifiedE1);
+				e12 : flow = getSecondOperand(simplifiedE1);
+
+				newExpression : flow = Div(e11, Mul(e12, simplifiedE2));
+
+				simplifyExpression(newExpression);
+			}
+			else if (expressionIsDiv(simplifiedE2)) { // a / (b / c) -> (a * c) / b
+				e21 : flow = getFirstOperand(simplifiedE2);
+				e22 : flow = getSecondOperand(simplifiedE2);
+
+				newExpression : flow = Div(Mul(simplifiedE1, e22), e21);
+
+				simplifyExpression(newExpression);
+			}
+			else if (expressionIsPow(simplifiedE1) && expressionIsPow(simplifiedE2)) { // (a ^ n) / (a ^ m) -> a ^ (n - m)
+				baseE1 : flow = getFirstOperand(simplifiedE1);
+				baseE2 : flow = getFirstOperand(simplifiedE2);
+				exponentE1 : flow = getSecondOperand(simplifiedE1);
+				exponentE2 : flow = getSecondOperand(simplifiedE2);
+				if (expressionsAreEqual(baseE1, baseE2)) {
+					newExpression : flow = Pow(baseE1, Sub(exponentE1, exponentE2));
+
+					simplifyExpression(newExpression);
+				}
+				else if (expressionsAreEqual(exponentE1, exponentE2)){
+					newExpression : flow = Pow(Div(baseE1, baseE2), exponentE1);
+
+					simplifyExpression(newExpression);
+				}
+				else {
+					Div(simplifiedE1, simplifiedE2);
+				}
+			}
+			else {
+				Div(simplifiedE1, simplifiedE2);
+			}
+		}
+		Pow(e1, e2): {
+			simplifiedE1 : flow = simplifyExpression(e1);
+			simplifiedE2 : flow = simplifyExpression(e2);
+
+			if (expressionIsZero(simplifiedE1)) { // 0 ^ a -> 0
+				Double(0.0);
+			}
+			else if (expressionIsOne(simplifiedE1)) { // 1 ^ a -> 1
+				Double(1.0);
+			}
+			else if (expressionIsZero(simplifiedE2)) { // a ^ 0 -> 1
+				Double(1.0);
+			}
+			else if (expressionIsOne(simplifiedE2)) { // a ^ 1 -> a
+				simplifiedE1;
+			}
+			else {
+				Pow(simplifiedE1, simplifiedE2);
+			}
+		}
+		Der(e1, e2): {
+			Der(simplifyExpression(e1), e2);
+		}
+	}
+}

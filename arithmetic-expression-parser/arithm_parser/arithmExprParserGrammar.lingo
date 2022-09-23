@@ -1,0 +1,63 @@
+// ==============================
+// Arithmetic expressions grammar
+// ==============================
+
+// First of all, let's define the Term.
+// 	1) Double constants and variables are Terms
+//	2) If t1 and t2 are Terms, then
+//		(t1)        -- Term
+//		(t1 + t2)   -- Term
+//		(t1 - t2)   -- Term
+//		(t1 * t2)   -- Term
+//		(t1 / t2)   -- Term
+//	3) There are no other Terms.  
+
+// As you can see, there is no term such as "-Term".
+// Use (0 - Term) instead.
+
+// Parsing starts with outer Term, then it goes "inside" the Term.
+// When parenteheses are dropped, parsing continues in sub-Terms.
+// When sub-Terms are parsed, new Term is being constructed.
+
+ParsedExpression = ws Term;
+
+Term = "(" ws "d{" ws Term:t "}" ws "/" ws "d{" ws Variable$v "}" ws ")" ws { Der(:t, Var($v)) }
+	 | "(" ws Term:t1 "+" ws Term:t2 ")" ws { Add(:t1, :t2) }
+	 | "(" ws Term:t1 "-" ws Term:t2 ")" ws { Sub(:t1, :t2) }
+	 | "(" ws Term:t1 "*" ws Term:t2 ")" ws { Mul(:t1, :t2) }
+	 | "(" ws Term:t1 "/" ws Term:t2 ")" ws { Div(:t1, :t2) }
+	 | "(" ws Term:t1 "^" ws Term:t2 ")" ws { Pow(:t1, :t2) }
+	 | "(" ws Term:t1 ")" ws { :t1 }
+	 | Variable$v ws { Var($v) }
+	 | Const;
+
+// Const is a positive or negative double constant.
+// The reason of splitting constants into two types is
+//	readability of the grammar. 
+Const = PosConst | NegConst;
+
+// When there is exact match with a Number, cast matching text
+//	to double and construct Double Term.
+PosConst = Number$pc ws { Double(s2d($pc)) };
+// When there is exact match with a Number with "-" before it,
+//  cast matching text to double and construct Double Term.
+NegConst = ("-" Number)$nc ws { Double(s2d($nc)) };
+
+// Double constant consists of two parts - Integer and Real parts.
+// Integer part = one or more digits.
+// Real part = "." and one or more digits after.
+// Following this definition, these examples will cause errors:
+//	.123
+//	123.
+Number = digit+ ("." digit+)?;
+// Variable = any combination of letters and digits. But there is
+//	one rule. Name of the variable must starts with a letter.
+Variable = letter (letter | digit)*;
+
+// Standard definition of letters and digits which is taken from regexp. 
+letter = 'a'-'z';
+digit = '0'-'9';
+
+// ws stands for whitespaces sequences.
+ws = s*;
+s = " " | "\t" | "\n";

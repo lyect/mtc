@@ -1,0 +1,107 @@
+import arithm_parser/parser_headFile;
+
+export {
+	prettyPrintExpression(expression : flow) -> void;
+	expression2string(expression : flow) -> string;
+}
+
+// deep parameter is needed for printing indents.
+// If deep is N, then indent will be 2*N whitespaces.
+// Printing style is described below.
+prettyPrintExpression_rec(expression : flow, deep : int) -> void {
+	indent : string = strGlue(arrayRepeat("  ", deep), "");
+	switch (expression : Exp) {
+		Double(d): {
+			println(indent + d2s(d));
+		}
+		Var(name): {
+			println(indent + "Var(" + name + ")")
+		}
+		Add(e1, e2): {
+			println(indent + "Add(");
+			prettyPrintExpression_rec(e1, deep + 1);
+			prettyPrintExpression_rec(e2, deep + 1);
+			println(indent + ")")
+		}
+		Sub(e1, e2): {
+			println(indent + "Sub(");
+			prettyPrintExpression_rec(e1, deep + 1);
+			prettyPrintExpression_rec(e2, deep + 1);
+			println(indent + ")")
+		}
+		Mul(e1, e2): {
+			println(indent + "Mul(");
+			prettyPrintExpression_rec(e1, deep + 1);
+			prettyPrintExpression_rec(e2, deep + 1);
+			println(indent + ")")
+		}
+		Div(e1, e2): {
+			println(indent + "Div(");
+			prettyPrintExpression_rec(e1, deep + 1);
+			prettyPrintExpression_rec(e2, deep + 1);
+			println(indent + ")")
+		}
+		Pow(e1, e2): {
+			println(indent + "Pow(");
+			prettyPrintExpression_rec(e1, deep + 1);
+			prettyPrintExpression_rec(e2, deep + 1);
+			println(indent + ")")
+		}
+		Der(e1, e2): {
+			println(indent + "d{");
+			prettyPrintExpression_rec(e1, deep + 1);
+
+			dVarName : string = getVarName(e2);
+
+			println(indent + "} / d{" + dVarName + "}");
+		}
+	}
+}
+
+// Prints expression with indents.
+// For example,
+//		Sub(Div(1, 2), 3)
+// will be printed as
+//	Sub(
+//		Div(
+//			1
+//			2
+//		)
+//		3
+//	)
+// Isn't it pretty, is it?
+prettyPrintExpression(expression : flow) -> void {
+	prettyPrintExpression_rec(expression, 0);
+}
+
+// This function folds expression to string. After that every constant
+//	or variable will be surrounded with parentheses.
+expression2string(expression : flow) -> string {
+
+	switch (expression : Exp) {
+		Double(d): {
+			"(" + d2s(d) + ")";
+		}
+		Var(name): {
+			"(" + name + ")";
+		}
+		Add(e1, e2): {
+			"(" + expression2string(e1) + "+" + expression2string(e2) + ")";
+		}
+		Sub(e1, e2): {
+			"(" + expression2string(e1) + "-" + expression2string(e2) + ")";
+		}
+		Mul(e1, e2): {
+			"(" + expression2string(e1) + "*" + expression2string(e2) + ")";
+		}
+		Div(e1, e2): {
+			"(" + expression2string(e1) + "/" + expression2string(e2) + ")";
+		}
+		Pow(e1, e2): {
+			"(" + expression2string(e1) + "^" + expression2string(e2) + ")";
+		}
+		Der(e1, e2): {
+			"(d{" + expression2string(e1) + "}/d{" + expression2string(e2) + "}";
+		}
+	}
+}

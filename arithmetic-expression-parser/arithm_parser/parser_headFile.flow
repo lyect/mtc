@@ -1,0 +1,460 @@
+import lingo/pegcode/driver;
+import fs/filesystem;
+import sys/system;
+import math/math;
+import ds/array;
+import ds/tree;
+import runtime;
+
+export {
+
+Exp ::= Double, Var, Add, Sub, Mul, Div, Pow, Der;
+	Double : (d : double);
+	Var : (name : string);
+	Add : (l : Exp, r : Exp);
+	Sub : (l : Exp, r : Exp);
+	Mul : (l : Exp, r : Exp);
+	Div : (l : Exp, r : Exp);
+	Pow : (b : Exp, e : Exp);
+	Der : (df : Exp, dx : Exp);
+
+	// Main parser function. It parses expression represented as string.
+	// Output value have "ParseResult" type (flow9 built-in type), which
+	//	can be easily casted to Exp or its subtypes.
+	parse(expressionString : string) -> flow;
+
+	// ###########
+	// # GETTERS #
+	// ###########
+
+	// I do not quite understand how to properly use the 
+	//	Maybe type (flow9 built-in type).
+	// So, getters are a little bit dangerous in use.
+	// Applying one of the getters to a wrong type may
+	//	cause some errors in the future.
+
+	// Passed expression must be only "Double" type!
+	// Before using this function, be sure to do type-checking.
+	getDoubleValue(expression : flow) -> double;
+
+	// Passed expression must be only "Var" type!
+	// Before using this function, be sure to do type-checking.
+	getVarName(expression : flow) -> string;
+
+	// Passed expression must be any type except "Double", "Var" and "Der" types.
+	// Before using this function, be sure to do type-checking.
+	getFirstOperand(expression : flow) -> flow;
+
+	// Passed expression must be any type except "Double", "Var" and "Der" types.
+	// Before using this function, be sure to do type-checking.
+	getSecondOperand(expression : flow) -> flow;
+
+	// ############
+	// # CHECKERS #
+	// ############
+
+	// This function checks if passed expression is Double(0.0).
+	expressionIsZero(expression : flow) -> bool;
+
+	// This function checks if passed expression is Double(1.0).
+	expressionIsOne(expression : flow) -> bool;
+
+	// These functions check which type expression is related to.
+	expressionIsDouble(expression : flow) -> bool;
+	expressionIsVar(expression : flow) -> bool;
+	expressionIsAdd(expression : flow) -> bool;
+	expressionIsSub(expression : flow) -> bool;
+	expressionIsMul(expression : flow) -> bool;
+	expressionIsDiv(expression : flow) -> bool;
+	expressionIsPow(expression : flow) -> bool;
+	expressionIsDer(expression : flow) -> bool;
+
+	// This function checks if two expressions are the same.
+	expressionsAreEqual(expression1 : flow, expression2 : flow) -> bool;
+
+	// This function increments expression by one.
+	// This function can handle only expressions such as
+	//		Add(..., Double(n))
+	// which will be transformed into
+	//		Add(..., Double(n + 1))
+	// Expressions, which are not represented as described above,
+	//	will be transformed into 
+	//		Add(expression, Double(1.0))
+	incrementExpression(expression : flow) -> flow;
+
+	// This function decrements expression by one.
+	// This function can handle only expressions such as
+	//		Sub(..., Double(n))
+	// which will be transformed into
+	//		Sub(..., Double(n + 1))
+	// Expressions, which are not represented as described above,
+	//	will be transformed into 
+	//		Sub(expression, Double(1.0))
+	decrementExpression(expression : flow) -> flow;
+}
+
+// expressionString - expression to parse.
+// grammarPath - grammar for parsing. Path to grammar must be relative
+//	and start from $FLOW folder!
+// This function returns ParseResult (flow built-in type), which is AST.
+// It can be easily traversed using switch.
+parse(expressionString : string) -> flow {
+	arithmGrammarOp : ref Maybe<[PegOp]> = ref None();
+	parsic(
+		onlyOnce(
+			arithmGrammarOp, \ -> {
+				compilePegGrammar("#include lib/arithm_parser/arithmExprParserGrammar.lingo");
+			}
+		),
+		expressionString,
+		defaultPegActions
+	);
+}
+
+// ###############
+// #             #
+// #   GETTERS   #
+// #             #
+// ###############
+
+getDoubleValue(expression : flow) -> double {
+	switch (expression : Exp) {
+		Double(d): {
+			d;
+		}
+		default: {
+			0.0; // unreachable
+		}
+	}
+}
+
+getVarName(expression : flow) -> string {
+	switch (expression : Exp) {
+		Var(name): {
+			name;
+		}
+		default: {
+			"#"; // unreachable
+		}
+	}
+}
+
+getFirstOperand(expression : flow) -> flow {
+	switch (expression : Exp) {
+		Add(e1, e2): {
+			e1;
+		}
+		Sub(e1, e2): {
+			e1;
+		}
+		Mul(e1, e2): {
+			e1;
+		}
+		Div(e1, e2): {
+			e1;
+		}
+		Pow(e1, e2): {
+			e1;
+		}
+		Der(e1, e2): {
+			e1;
+		}
+		default: {
+			expression; // unreachable
+		}
+	}
+}
+
+getSecondOperand(expression : flow) -> flow {
+	switch (expression : Exp) {
+		Add(e1, e2): {
+			e2;
+		}
+		Sub(e1, e2): {
+			e2;
+		}
+		Mul(e1, e2): {
+			e2;
+		}
+		Div(e1, e2): {
+			e2;
+		}
+		Pow(e1, e2): {
+			e2;
+		}
+		Der(e1, e2): {
+			e2;
+		}
+		default: {
+			expression; // unreachable
+		}
+	}
+}
+
+// ################
+// #              #
+// #   CHECKERS   #
+// #              #
+// ################
+
+expressionIsZero(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Double(d): {
+			if (d == 0.0) {
+				true;
+			}
+			else {
+				false;
+			}
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+expressionIsOne(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Double(d): {
+			if (d == 1.0) {
+				true;
+			}
+			else {
+				false;
+			}
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+expressionIsDouble(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Double(d): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+expressionIsVar(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Var(name): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+expressionIsAdd(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Add(e1, e2): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+expressionIsSub(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Sub(e1, e2): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+expressionIsMul(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Mul(e1, e2): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+expressionIsDiv(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Div(e1, e2): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+expressionIsPow(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Pow(e1, e2): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+expressionIsDer(expression : flow) -> bool {
+	switch (expression : Exp) {
+		Der(e1, e2): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+// #######################
+// #                     #
+// #   OTHER FUNCTIONS   #
+// #                     #
+// #######################
+
+expressionsAreEqual(expression1 : flow, expression2 : flow) -> bool {
+	switch (expression1 : Exp) {
+		Double(d): {
+			if (expressionIsDouble(expression2)){
+				if (d == getDoubleValue(expression2)) {
+					true;
+				}
+				else {
+					false;
+				}
+			}
+			else {
+				false;
+			}
+			
+		}
+		Var(name): {
+			if (expressionIsVar(expression2)){
+				if (name == getVarName(expression2)) {
+					true;
+				}
+				else {
+					false;
+				}
+			}
+			else {
+				false;
+			}
+		}
+		Add(e1, e2): {
+			if (expressionIsAdd(expression2)) {
+				branchResult1 : bool = expressionsAreEqual(e1, getFirstOperand(expression2));
+				branchResult2 : bool = expressionsAreEqual(e2, getSecondOperand(expression2));
+				branchResult1 && branchResult2;
+			}
+			else {
+				false;
+			}
+		}
+		Sub(e1, e2): {
+			if (expressionIsSub(expression2)) {
+				branchResult1 : bool = expressionsAreEqual(e1, getFirstOperand(expression2));
+				branchResult2 : bool = expressionsAreEqual(e2, getSecondOperand(expression2));
+				branchResult1 && branchResult2;
+			}
+			else {
+				false;
+			}
+		}
+		Mul(e1, e2): {
+			if (expressionIsMul(expression2)) {
+				branchResult1 : bool = expressionsAreEqual(e1, getFirstOperand(expression2));
+				branchResult2 : bool = expressionsAreEqual(e2, getSecondOperand(expression2));
+				branchResult1 && branchResult2;
+			}
+			else {
+				false;
+			}
+		}
+		Div(e1, e2): {
+			if (expressionIsDiv(expression2)) {
+				branchResult1 : bool = expressionsAreEqual(e1, getFirstOperand(expression2));
+				branchResult2 : bool = expressionsAreEqual(e2, getSecondOperand(expression2));
+				branchResult1 && branchResult2;
+			}
+			else {
+				false;
+			}
+		}
+		Pow(e1, e2): {
+			if (expressionIsPow(expression2)) {
+				branchResult1 : bool = expressionsAreEqual(e1, getFirstOperand(expression2));
+				branchResult2 : bool = expressionsAreEqual(e2, getSecondOperand(expression2));
+				branchResult1 && branchResult2;
+			}
+			else {
+				false;
+			}
+		}
+		Der(e1, e2): {
+			if (expressionIsDer(expression2)) {
+				branchResult1 : bool = expressionsAreEqual(e1, getFirstOperand(expression2));
+				branchResult2 : bool = expressionsAreEqual(e2, getSecondOperand(expression2));
+				branchResult1 && branchResult2;
+			}
+			else {
+				false;
+			}
+		}
+	}
+}
+
+incrementExpression(expression : flow) -> flow {
+	switch (expression : Exp) {
+		Double(d): {
+			Double(d + 1.0);
+		}
+		Var(name): {
+			Add(Var(name), Double(1.0));
+		}
+		Add(e1, e2): {
+			if (expressionIsDouble(e2)){
+				Add(e1, incrementExpression(e2));
+			}
+			else {
+				Add(Add(e1, e2), Double(1.0));
+			}
+		}
+		default: {
+			Add(expression, Double(1.0));
+		}
+	}
+}
+
+decrementExpression(expression : flow) -> flow {
+	switch (expression : Exp) {
+		Double(d): {
+			Double(d - 1.0);
+		}
+		Var(name): {
+			Sub(Var(name), Double(1.0));
+		}
+		Sub(e1, e2): {
+			if (expressionIsDouble(e2)){
+				Sub(e1, incrementExpression(e2));
+			}
+			else {
+				Sub(Sub(e1, e2), Double(1.0));
+			}
+		}
+		default: {
+			Sub(expression, Double(1.0));
+		}
+	}
+}
