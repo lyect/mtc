@@ -22,3 +22,15 @@ Task list:
   * **(4)** An array of integers _A_ and integer _m_ are given. Write a function which finds all pairs of indexes (i, j) such that i < j and _A_[i] + _A_[j] == _m_. Here are two subtasks:
     * **(4.1)** Make it with complexity O(n<sup>2</sup>) using nested loops.
     * **(4.2)** Make it with complexity O(nlogn) using binary searching tree.
+
+## Block #2 : Parsers and AST
+The main task - to write a arithmetic expression parser.
+There are two topics in this block: making a grammar for arithmetic expressions, making a parser.
+Task list:
+  * **(5)** Write a PEG-parser using built-in library lingo. On this step, expressions may only consists of addition and multiplication.
+  * **(6)** Transform parsed expression back to string form.
+  * **(7)** Make a function for evaluating parsed expressions.
+  * **(8)** Add variables.
+  * **(9)** Add powers, division and substraction.
+  * **(10)** Make function for simplifying expressions.
+  * **(11)** Add derivatives.
