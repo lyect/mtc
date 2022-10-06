@@ -7,7 +7,7 @@ Tasks are being solved using [flow9](https://github.com/area9innovation/flow9). 
 Tasks were splitted between four blocks. Here is the list of blocks:
   * Getting to know flow9
   * Parsers and AST
-  * HeMo language (from russian "**Не**детерминированный **Мо**дельный язык")
+  * NeMo language (from russian "**Не**детерминированный **Мо**дельный язык")
   * Formal verification for HeMo
 
 ## Block #1 : Getting to know flow9
