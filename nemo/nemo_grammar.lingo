@@ -1,0 +1,92 @@
+Program = ws VariableDeclarationList:vdl Body:b  { Program(:vdl, :b) };
+
+// #####################################################
+// #                                                   #
+// #   VARIABLE DECLARATION LIST PART OF THE GRAMMAR   #
+// #                                                   #
+// #####################################################
+
+VariableDeclarationList = VariableDeclaration*:vdl { :vdl };
+
+VariableDeclaration = "VAR " ws VariableName$vn ws ":" ws TypeDeclaration:t ";" ws { VarDecl($vn, :t) };
+	
+TypeDeclaration = 
+	  BaseTypeDeclaration:t1 s+ "ARRAY OF " ws BaseTypeDeclaration:t2 ws { ArrayType(:t1, :t2) }
+	| BaseTypeDeclaration:t1 s+ "ARRAY OF " ws "{" ws TypeDeclaration:t2 "}" ws { ArrayType(:t1, :t2) }
+	| "{" ws TypeDeclaration:t1 "}" s+ "ARRAY OF " ws BaseTypeDeclaration:t2 ws { ArrayType(:t1, :t2) }
+	| "{" ws TypeDeclaration:t1 "}" s+ "ARRAY OF " ws "{" ws TypeDeclaration:t2 "}" ws { ArrayType(:t1, :t2) }
+	| "{" ws BaseTypeDeclaration:btd ws "}" ws { :btd }
+	| BaseTypeDeclaration:btd ws { :btd };
+	
+BaseTypeDeclaration = "INT" { IntType() };
+
+// #######################################
+// #                                     #
+// #   EXPRESSIONS PART OF THE GRAMMAR   #
+// #                                     #
+// #######################################
+
+Expression = "(" ws Expression:e1 "+" ws Expression:e2 ")" ws { Sum(:e1, :e2) }
+		   | "(" ws Expression:e1 "-" ws Expression:e2 ")" ws { Sub(:e1, :e2) }
+		   | "(" ws Expression:e1 "*" ws Expression:e2 ")" ws { Mul(:e1, :e2) }
+		   | "(" ws Expression:e1 "/" ws Expression:e2 ")" ws { Div(:e1, :e2) }
+		   | "(" ws Expression:e ")" ws { :e }
+		   | ArrayOperationExpression:aoe { :aoe }
+		   | VariableExpression:ve { :ve }
+		   | ConstExpression:ce { :ce };
+
+ArrayOperationExpression =
+	  "UPD(" ws VariableExpression:vre "," ws Expression:ie "," ws Expression:ve ")" ws { UPD(:vre, :ie, :ve) }
+	| "APP(" ws VariableExpression:vre "," ws Expression:ie ")" ws { APP(:vre, :ie) };
+
+VariableExpression = VariableName$vn ws { Var($vn) };
+
+ConstExpression = ArrayConstExpression | IntConstExpression;
+ArrayConstExpression =
+	  "[" ws ArrayConstExpression:ace0 ws ("," ws ArrayConstExpression)*:ace1n "]" ws {
+		  buildArrayConstExpression(:ace0, :ace1n)
+	  }
+	| IntConstExpression:ice { :ice };
+IntConstExpression = ("-" digit+)$ni ws { Int(s2i($ni)) }
+				   | "+" digit+$pi ws { Int(s2i($pi)) }
+				   | digit+$pi ws { Int(s2i($pi)) };
+
+// ##########################################
+// #                                        #
+// #   PROGRAM BODIES PART OF THE GRAMMAR   #
+// #                                        #
+// ##########################################
+ 
+Body = "{" ws Body:b0 (Body)*:b1n "}" ws ";" ws { buildSequence(:b0, :b1n) }
+	 | "[" ws Body:b0 (Body)*:b1n "]" ws ";" ws { buildIteration(:b0, :b1n) }
+	 | "|" ws Body:b0 (Body)+:b1n "|" ws ";" ws { buildChoice(:b0, :b1n) }
+	 | VariableExpression:ve ":=" ws Expression:e ";" ws { Assign(:ve, :e) }
+	 | "SHOW(" ws VariableExpression:ve ")" ws ";" ws { Show(:ve) }
+	 | "(" ws ConditionBody:c ws ")?" ws ";" ws { Condition(:c) }
+	 | "{" ws "}" ws ";" ws { Empty() };
+
+ConditionBody = "(" ws ConditionBody:c1 ws "AND" ws ConditionBody:c2 ws ")" { And(:c1, :c2) }
+			  | "(" ws ConditionBody:c1 ws "OR" ws ConditionBody:c2 ws ")" { Or(:c1, :c2) }
+			  | "(" ws "NOT" ws ConditionBody:c ws ")" { Not(:c) } 
+			  | "(" ws InequalityBody:ie ")" { :ie }
+			  | InequalityBody:ie { :ie };
+
+InequalityBody = Expression:e1 "<" ws Expression:e2 { Less(:e1, :e2) }
+			   | Expression:e1 "=" ws Expression:e2 { Equal(:e1, :e2) }
+			   | Expression:e1 ">" ws Expression:e2 { Greater(:e1, :e2) }
+			   | Expression:e1 "<=" ws Expression:e2 { LeQ(:e1, :e2) }
+			   | Expression:e1 ">=" ws Expression:e2 { GeQ(:e1, :e2) };
+
+// ####################
+// #                  #
+// #   COMMON STUFF   #
+// #                  #
+// ####################
+
+VariableName = letter (letter | digit)*:vn { :vn };
+letter = 'a'-'z';
+digit = '0'-'9';
+
+// ws stands for whitespaces sequences.
+ws = s*;
+s = " " | "\t" | "\n";

@@ -1,0 +1,223 @@
+import ds/array;
+import runtime;
+import dynamic;
+import ds/tree;
+import string;
+
+export {
+
+Program(variableDeclarationList : [VarDecl], body : Body);
+
+Type ::= IntType, ArrayType, UnknownType;
+	IntType();
+	ArrayType(indexType : Type, dataType : Type);
+	UnknownType();
+
+VarDecl(name : string, type : Type);
+
+Expression ::= Sum, Sub, Mul, Div, UPD, APP, Array, Int, Var;
+	Sum(e1 : Expression, e2 : Expression);
+	Sub(e1 : Expression, e2 : Expression);
+	Mul(e1 : Expression, e2 : Expression);
+	Div(e1 : Expression, e2 : Expression);
+	UPD(arr : Var, indExpr : Expression, valExpr : Expression);
+	APP(arr : Var, indExpr : Expression);
+	Array(value : flow);
+	Int(value : int);
+	Var(name : string);
+
+Inequality ::= Less, Equal, Greater, LeQ, GeQ;
+	Less(e1 : Expression, e2 : Expression);
+	Equal(e1 : Expression, e2 : Expression);
+	Greater(e1 : Expression, e2 : Expression);
+	LeQ(e1 : Expression, e2 : Expression);
+	GeQ(e1 : Expression, e2 : Expression);
+
+BooleanExpression ::= And, Or, Not, Inequality;
+	And(be1 : BooleanExpression, be2 : BooleanExpression);
+	Or(be1 : BooleanExpression, be2 : BooleanExpression);
+	Not(be1 : BooleanExpression);
+
+Body ::= Empty, Sequence, Assign, Show, Condition, Iteration, Choice;
+	Empty();
+	Condition(cond : BooleanExpression);
+	Sequence(bodies : [Body]);
+	Assign(var : Var, expr : Expression);
+	Show(var : Var);
+	Iteration(bodies : [Body]);
+	Choice(bodies : [Body]);
+
+	makeVariableTree(nemoProgram : Program) -> Tree<string, Type>;
+	countArrayExpressionNestingLevel(arrayExpr : flow) -> int;
+	conditionValue2string(cond : flow) -> string;
+	expression2string(expr : flow) -> string;
+}
+
+makeVariableTree(nemoProgram : Program) -> Tree<string, Type> {
+	fold(
+		nemoProgram.variableDeclarationList,
+		makeTree(),
+		\tree, varDecl -> {
+			if (!containsKeyTree(tree, varDecl.name)) {
+				setTree(
+					tree,
+					varDecl.name,
+					varDecl.type
+				);	
+			}
+			else {
+				fail0("Redefining variable \"" + varDecl.name + "\"");
+			}
+		}
+	)
+}
+
+countArrayExpressionNestingLevel(arrayExpr : flow) -> int {
+	switch (arrayExpr : Expression) {
+		Array(value) : {
+			arrNest : int = fold(
+				tail(value),
+				countArrayExpressionNestingLevel(value[0]),
+				\res, elem -> {
+					elemNest : int = countArrayExpressionNestingLevel(elem);
+					if (res == elemNest) {
+						res;
+					}
+					else {
+						-1;
+					}
+				}
+			);
+			if (arrNest == -1) {
+				-1;
+			}
+			else {
+				arrNest + 1;
+			}
+		}
+		Int(value): {
+			0;
+		}
+		default: {
+			-1;
+		}
+	}
+	
+}
+
+arrayExpression2string(arrayExpr : flow) -> string {
+	switch (arrayExpr : Expression) {
+		Array(value): {
+			"[" + a2s2(
+				value,
+				",",
+				\elem -> {
+					arrayExpression2string(elem);	
+				}
+			) + "]";
+		}
+		Int(value): {
+			i2s(value);
+		}
+		default: {
+			"";
+		}
+	}
+}
+
+expression2string(expr : flow) -> string {
+	switch (expr : Expression) {
+		Sum(e1, e2): {
+			e1s : string = expression2string(e1);
+			e2s : string = expression2string(e2);
+			"(" + e1s + "+" + e2s + ")";
+		}
+		Sub(e1, e2): {
+			e1s : string = expression2string(e1);
+			e2s : string = expression2string(e2);
+			"(" + e1s + "-" + e2s + ")";
+		}
+		Mul(e1, e2): {
+			e1s : string = expression2string(e1);
+			e2s : string = expression2string(e2);
+			"(" + e1s + "*" + e2s + ")";
+		}
+		Div(e1, e2): {
+			e1s : string = expression2string(e1);
+			e2s : string = expression2string(e2);
+			"(" + e1s + "/" + e2s + ")";
+		}
+		UPD(arr, indExpr, valExpr): {
+			aes : string = expression2string(arr);
+			ies : string = expression2string(indExpr);
+			ves : string = expression2string(valExpr);
+			"(UPD(" + aes + ", " + ies + ", " + ves + "))";
+		}
+		APP(arr, indExpr): {
+			aes : string = expression2string(arr);
+			ies : string = expression2string(indExpr);
+			"(APP(" + aes + ", " + ies + "))";
+		}
+		Array(value): {
+			"(" + arrayExpression2string(expr) + ")";
+		}
+		Int(value): {
+			"(" + i2s(value) + ")";
+		}
+		Var(name): {
+			"(" + name + ")";
+		}
+	}
+}
+
+booleanExpression2string(boolExp : flow) -> string {
+	switch (boolExp : BooleanExpression) {
+		And(be1, be2): {
+			be1s : string = booleanExpression2string(be1);
+			be2s : string = booleanExpression2string(be2);
+			"(AND(" + be1s + ", " + be2s + "))";
+		}
+		Or(be1, be2): {
+			be1s : string = booleanExpression2string(be1);
+			be2s : string = booleanExpression2string(be2);
+			"(OR(" + be1s + ", " + be2s + "))";
+		}
+		Not(be1): {
+			be1s : string = booleanExpression2string(be1);
+			"(NOT(" + be1s + "))";
+		}
+		Inequality(): {
+			switch (boolExp : Inequality) {
+				Less(e1, e2): {
+					e1s : string = expression2string(e1);
+					e2s : string = expression2string(e2);
+					"(" + e1s + "<" + e2s + ")";
+				}
+				Equal(e1, e2): {
+					e1s : string = expression2string(e1);
+					e2s : string = expression2string(e2);
+					"(" + e1s + "=" + e2s + ")";
+				}
+				Greater(e1, e2): {
+					e1s : string = expression2string(e1);
+					e2s : string = expression2string(e2);
+					"(" + e1s + ">" + e2s + ")";
+				}
+				LeQ(e1, e2): {
+					e1s : string = expression2string(e1);
+					e2s : string = expression2string(e2);
+					"(" + e1s + "<=" + e2s + ")";
+				}
+				GeQ(e1, e2): {
+					e1s : string = expression2string(e1);
+					e2s : string = expression2string(e2);
+					"(" + e1s + ">=" + e2s + ")";
+				}
+			}
+		}
+	}
+}
+
+conditionValue2string(cond : flow) -> string {
+	booleanExpression2string(cond);
+}

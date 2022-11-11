@@ -1,0 +1,52 @@
+import ds/tree;
+
+export {
+
+VMProgram(operators : [Operator]);
+
+Operator ::= CNOP, CLOP, SOP;
+	CNOP(mk : Mark, var : Var, expr : Expression, gtmk : Mark);
+	CLOP(mk : Mark, cond : ConditionExpression, tmk : Mark, fmk : Mark);
+	SOP(mk : Mark, var : Var, gtmk : Mark);
+
+Mark(value: int);
+
+Expression ::= Sum, Sub, Mul, Div, UPD, APP, Array, Int, Var;
+	Sum(e1 : Expression, e2 : Expression);
+	Sub(e1 : Expression, e2 : Expression);
+	Mul(e1 : Expression, e2 : Expression);
+	Div(e1 : Expression, e2 : Expression);
+	UPD(arr : Var, indExpr : Expression, valExpr : Expression);
+	APP(arr : Var, indExpr : Expression);
+	Array(value : flow);
+	Int(value : int);
+	Var(name : string);
+
+Inequality ::= Less, Equal, Greater, LeQ, GeQ;
+	Less(e1 : Expression, e2 : Expression);
+	Equal(e1 : Expression, e2 : Expression);
+	Greater(e1 : Expression, e2 : Expression);
+	LeQ(e1 : Expression, e2 : Expression);
+	GeQ(e1 : Expression, e2 : Expression);
+
+ConditionExpression ::= And, Or, Not, Inequality;
+	And(be1 : ConditionExpression, be2 : ConditionExpression);
+	Or(be1 : ConditionExpression, be2 : ConditionExpression);
+	Not(be : ConditionExpression);
+
+	makeProgramTree(nemoVMProgram : VMProgram) -> Tree<int, flow>;
+}
+
+makeProgramTree(nemoVMProgram : VMProgram) -> Tree<int, flow> {
+	fold(
+		nemoVMProgram.operators,
+		makeTree(),
+		\tree, elem -> {
+			setTree(
+				tree,
+				elem.mk.value,
+				elem
+			)
+		}
+	)
+}

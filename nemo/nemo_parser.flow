@@ -1,0 +1,412 @@
+import lingo/pegcode/driver;
+import fs/filesystem;
+
+import nemo/nemo_head;
+import nemo/nemo_type_utils;
+import nemo/nemo_correctness;
+
+export {
+	nemo_parse(nemoProgramString : string) -> Program;
+	makeVMCode(nemoProgram : Program, vmCodeFilePath : string) -> void;
+}
+
+buildArrayConstExpression(aces : [flow]) -> flow {
+	Array(concat(v2a(aces[0]), aces[1]));
+}
+
+buildSequence(bs : [flow]) -> flow {
+	Sequence(concat(v2a(bs[0]), bs[1]));
+}
+
+buildChoice(bs : [flow]) -> flow {
+	Choice(concat(v2a(bs[0]), bs[1]));
+}
+
+buildIteration(bs : [flow]) -> flow {
+	Iteration(concat(v2a(bs[0]), bs[1]));
+}
+
+nemo_parse(nemoProgramString : string) -> Program {
+	nemoGrammarOp : ref Maybe<[PegOp]> = ref None();
+	
+	specialSemanticActions : [Pair<string, ([flow]) -> flow>] = [
+		Pair("buildArrayConstExpression", buildArrayConstExpression),
+		Pair("buildIteration", buildIteration),
+		Pair("buildSequence", buildSequence),
+		Pair("buildChoice", buildChoice)
+	];
+	
+	specialPegActions = {
+		specialSemanticActionsTree = fold(
+			specialSemanticActions,
+			defaultPegActions.t,
+			\tree, semanticAction -> {
+				setTree(
+					tree,
+					firstOfPair(semanticAction),
+					secondOfPair(semanticAction)
+				)
+			}
+		);
+
+		SemanticActions(specialSemanticActionsTree);
+	}
+
+	nemoProgram : Program = cast(
+		parsic(
+			onlyOnce(
+				nemoGrammarOp, \ -> {
+					compilePegGrammar("#include lib/nemo/nemo_grammar.lingo");
+				}
+			),
+			nemoProgramString,
+			specialPegActions
+		) : flow -> Program
+	);
+
+	if (checkCorrectness(nemoProgram)) {
+		nemoProgram;
+	}
+	else {
+		fail0("Invalid program.");
+	}
+}
+
+calculateBodyLength(body : flow) -> Pair<int, flow> {
+	switch (body) {
+		Empty(): {
+			Pair(0, []);
+		}
+		Condition(cond): {
+			Pair(1, []);
+		}
+		Sequence(bodies): {
+			resArray : [Pair<int, flow>] = fold(
+				bodies,
+				[],
+				\res, elem -> {
+					elemPair : Pair<int, flow> = calculateBodyLength(elem);
+					arrayPush(res, elemPair);
+				}
+			);
+
+			resLength : int = fold(
+				resArray,
+				0,
+				\res, elem -> {
+					res + firstOfPair(elem);
+				}
+			);
+
+			Pair(resLength, resArray);
+		}
+		Assign(var, expr): {
+			Pair(1, []);
+		}
+		Show(var): {
+			Pair(1, []);
+		}
+		Iteration(bodies): {
+			resArray : [Pair<int, flow>] = fold(
+				bodies,
+				[],
+				\res, elem -> {
+					elemPair : Pair<int, flow> = calculateBodyLength(elem);
+					arrayPush(res, elemPair);
+				}
+			);
+
+			resLength : int = fold(
+				resArray,
+				0,
+				\res, elem -> {
+					res + firstOfPair(elem);
+				}
+			);
+
+			Pair(resLength, resArray);
+		}
+		Choice(bodies): {
+			resArray : [Pair<int, flow>] = fold(
+				bodies,
+				[],
+				\res, elem -> {
+					elemPair : Pair<int, flow> = calculateBodyLength(elem);
+					arrayPush(res, elemPair);
+				}
+			);
+
+			resLength : int = fold(
+				resArray,
+				0,
+				\res, elem -> {
+					res + firstOfPair(elem);
+				}
+			);
+
+			Pair(resLength, resArray);
+		}
+	}
+}
+
+writeCommonOperator(
+	vmCodeFilePath : string,
+	mark : int,
+	varName : string,
+	value : string,
+	nextMark : int
+) -> void {
+	// Need to read whole file, append new content to it and then write
+	//	all the new data to the file. Am I bloody blind so I can not find an
+	//	"appendToFile" function? Or flow's file-side is too poor? 
+	oldContent : string = getFileContent(vmCodeFilePath);
+	newContent : string = i2s(mark) + " : " + varName + " := " + value + " goto " + i2s(nextMark) + ";\n";
+	if (!setFileContent(vmCodeFilePath, oldContent + newContent)) {
+		println("[ERROR] Can not write VM code to file \"" + vmCodeFilePath + "\"!");
+		fail("Problem occured while writing to the file.");
+	}
+}
+
+writeConditionalOperator(
+	vmCodeFilePath : string,
+	mark : int,
+	cond : flow,
+	trueMark : int,
+	falseMark : int
+) -> void {
+	oldContent : string = getFileContent(vmCodeFilePath);
+	newContent : string =
+		i2s(mark) + " : " +
+		conditionValue2string(cond) +
+		" then " + i2s(trueMark) +
+		" else " + i2s(falseMark) + ";\n";
+	if (!setFileContent(vmCodeFilePath, oldContent + newContent)) {
+		println("[ERROR] Can not write VM code to file \"" + vmCodeFilePath + "\"!");
+		fail("Problem occured while writing to the file.");
+	}
+}
+
+writeShowOperator(
+	vmCodeFilePath : string,
+	mark : int,
+	varName : string,
+	nextMark : int
+) -> void {
+	oldContent : string = getFileContent(vmCodeFilePath);
+	newContent : string = i2s(mark) + " : SHOW(" + varName + ") goto " + i2s(nextMark) + ";\n";
+	if (!setFileContent(vmCodeFilePath, oldContent + newContent)) {
+		println("[ERROR] Can not write VM code to file \"" + vmCodeFilePath + "\"!");
+		fail("Problem occured while writing to the file.");
+	}
+}
+
+makeVarDeclVMCode(varDeclList : [VarDecl], currentMark : int, vmCodeFilePath : string) -> int {
+	fori(
+		currentMark,
+		currentMark + length(varDeclList) - 1,
+		\i -> {
+			if (isIntType(varDeclList[i - currentMark].type)) {
+				writeCommonOperator(
+					vmCodeFilePath,
+					i,
+					varDeclList[i - currentMark].name,
+					"(0)",
+					i + 1
+				);
+			}
+			else {
+				writeCommonOperator(
+					vmCodeFilePath,
+					i,
+					varDeclList[i - currentMark].name,
+					"([])",
+					i + 1
+				);
+			}
+		}
+	);
+	length(varDeclList) + currentMark
+}
+
+makeBodyVMCode(
+	body : flow,
+	currentMark : int,
+	bodyLength : Pair<int, flow>,
+	parentMark : int,
+	parentLength : int,
+	parentType : int,
+	isLastBody : bool,
+	vmCodeFilePath : string
+) -> int {
+	switch (body : Body) {
+		Empty(): {
+			currentMark;
+		}
+		Condition(cond): {
+			if (parentType == 0) { // parentType == 0 <=> parent is a SEQUENCE
+				writeConditionalOperator(
+					vmCodeFilePath,
+					currentMark,
+					cond,
+					currentMark + 1,
+					parentMark + parentLength
+				);
+			}
+			else if (parentType == 1) { // parentType == 1 <=> parent is an ITERATION
+				if (isLastBody) {
+					writeConditionalOperator(
+						vmCodeFilePath,
+						currentMark,
+						cond,
+						parentMark,
+						parentMark + parentLength
+					);
+				}
+				else {
+					writeConditionalOperator(
+						vmCodeFilePath,
+						currentMark,
+						cond,
+						currentMark + 1,
+						parentMark + parentLength
+					);
+				}
+			}
+			else { // parentType == 2 <=> parent is a CHOICE
+				writeConditionalOperator(
+					vmCodeFilePath,
+					currentMark,
+					cond,
+					currentMark + 1,
+					currentMark + firstOfPair(bodyLength)
+				);
+			}
+			currentMark + 1;
+		}
+		Sequence(bodies): {
+			foldi(
+				bodies,
+				currentMark,
+				\i, mark, elem -> {
+					makeBodyVMCode(
+						elem,
+						mark,
+						secondOfPair(bodyLength)[i],
+						currentMark,
+						firstOfPair(bodyLength),
+						0,
+						(if (i == length(bodies) - 1) {true} else {false}),
+						vmCodeFilePath
+					);
+				}
+			);
+		}
+		Assign(var, expr): {
+			if (parentType == 1 && isLastBody) {
+				writeCommonOperator(
+					vmCodeFilePath,
+					currentMark,
+					var.name,
+					expression2string(expr),
+					parentMark
+				);
+			}
+			else {
+				writeCommonOperator(
+					vmCodeFilePath,
+					currentMark,
+					var.name,
+					expression2string(expr),
+					currentMark + 1
+				);
+			}
+			currentMark + 1;
+		}
+		Show(var): {
+			if (parentType == 1 && isLastBody) {
+				writeShowOperator(
+					vmCodeFilePath,
+					currentMark,
+					var.name,
+					parentMark
+				);
+			}
+			else {
+				writeShowOperator(
+					vmCodeFilePath,
+					currentMark,
+					var.name,
+					currentMark + 1
+				);
+			}
+			currentMark + 1;
+		}
+		Iteration(bodies): {
+			foldi(
+				bodies,
+				currentMark,
+				\i, mark, elem -> {
+					makeBodyVMCode(
+						elem,
+						mark,
+						secondOfPair(bodyLength)[i],
+						currentMark,
+						firstOfPair(bodyLength),
+						1,
+						(if (i == length(bodies) - 1) {true} else {false}),
+						vmCodeFilePath
+					);
+				}
+			);
+		}
+		Choice(bodies): {
+			foldi(
+				bodies,
+				currentMark,
+				\i, mark, elem -> {
+					makeBodyVMCode(
+						elem,
+						mark,
+						secondOfPair(bodyLength)[i],
+						currentMark,
+						firstOfPair(bodyLength),
+						2,
+						(if (i == length(bodies) - 1) {true} else {false}),
+						vmCodeFilePath
+					);
+				}
+			);
+		}
+	}
+}
+
+
+makeVMCode(nemoProgram : Program, vmCodeFilePath : string) -> void {
+
+	// If file does not exist it will be created as empty file
+	// If file exists its content will be deleted
+	setFileContent(vmCodeFilePath, "");
+
+	currentMark : int = makeVarDeclVMCode(nemoProgram.variableDeclarationList, 0, vmCodeFilePath);
+	bodyLength : flow = calculateBodyLength(nemoProgram.body);
+	
+	lastMark : int = makeBodyVMCode(
+		nemoProgram.body,
+		currentMark,
+		bodyLength,
+		-1,
+		-1,
+		-1,
+		true,
+		vmCodeFilePath
+	);
+
+	println("Successfully generated VM code. It is stored in \"" + vmCodeFilePath + "\"");
+}
+
+main() {
+	nemoProgramFilePath : string = strsubsmart(readUntil("\n"), 0, -1);
+	nemoProgram : string = getFileContent(nemoProgramFilePath);
+	parsedProgram : Program = nemo_parse(nemoProgram);
+	makeVMCode(parsedProgram, changeFileExt(nemoProgramFilePath, ".nemovm"));
+}

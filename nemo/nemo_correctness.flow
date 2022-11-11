@@ -1,0 +1,394 @@
+import nemo/nemo_head;
+import nemo/nemo_type_utils;
+
+export {
+	checkCorrectness(nemoProgram : Program) -> bool;
+}
+
+checkArrayExpressionCorrectness(arrayExpr : flow) -> bool {
+	arrNest : int = countArrayExpressionNestingLevel(arrayExpr);
+	if (arrNest == -1) {
+		false;
+	}
+	else {
+		true;
+	}
+}
+
+checkExpressionCorrectness(expr : flow, varTree : Tree<string, Type>) -> bool {
+	switch (expr : Expression) {
+		Array(value): {
+			checkArrayExpressionCorrectness(expr);
+		}
+		Int(value): {
+			true;
+		}
+		Var(name): {
+			if (containsKeyTree(varTree, name)) {
+				true;
+			}
+			else {
+				println("[ERROR] Unknown variable \"" + name + "\"");
+				false;
+			}
+		}
+		Sum(e1, e2): {
+			e1c : bool = checkExpressionCorrectness(e1, varTree);
+			e2c : bool = checkExpressionCorrectness(e2, varTree);
+			if (e1c && e2c) {
+				e1t : Type = getExpressionType(e1, varTree);
+				e2t : Type = getExpressionType(e2, varTree);
+				if (isIntType(e1t) && isIntType(e2t)) {
+					true;
+				}
+				else {
+					println("[ERROR] Sum operands are not integers!");
+					false;
+				}
+			}
+			else {
+				false;
+			}
+		}
+		Sub(e1, e2): {
+			e1c : bool = checkExpressionCorrectness(e1, varTree);
+			e2c : bool = checkExpressionCorrectness(e2, varTree);
+			if (e1c && e2c) {
+				e1t : Type = getExpressionType(e1, varTree);
+				e2t : Type = getExpressionType(e2, varTree);
+				if (isIntType(e1t) && isIntType(e2t)) {
+					true;
+				}
+				else {
+					println("[ERROR] Sub operands are not integers!");
+					false;
+				}
+			}
+			else {
+				false;
+			}
+		}
+		Mul(e1, e2): {
+			e1c : bool = checkExpressionCorrectness(e1, varTree);
+			e2c : bool = checkExpressionCorrectness(e2, varTree);
+			if (e1c && e2c) {
+				e1t : Type = getExpressionType(e1, varTree);
+				e2t : Type = getExpressionType(e2, varTree);
+				if (isIntType(e1t) && isIntType(e2t)) {
+					true;
+				}
+				else {
+					println("[ERROR] Mul operands are not integers!");
+					false;
+				}
+			}
+			else {
+				false;
+			}
+		}
+		Div(e1, e2): {
+			e1c : bool = checkExpressionCorrectness(e1, varTree);
+			e2c : bool = checkExpressionCorrectness(e2, varTree);
+			if (e1c && e2c) {
+				e1t : Type = getExpressionType(e1, varTree);
+				e2t : Type = getExpressionType(e2, varTree);
+				if (isIntType(e1t) && isIntType(e2t)) {
+					true;
+				}
+				else {
+					println("[ERROR] Div operands are not integers!");
+					false;
+				}
+			}
+			else {
+				false;
+			}
+		}
+		UPD(arr, indExpr, valExpr): {
+			arrc : bool = checkExpressionCorrectness(arr, varTree);
+			arrt : Type = getExpressionType(arr, varTree);
+			if (isArrayType(arrt)) {
+				ic : bool = checkExpressionCorrectness(indExpr, varTree);
+				vc : bool = checkExpressionCorrectness(valExpr, varTree);
+				if (ic && vc) {
+					it : Type = getExpressionType(indExpr, varTree);
+					vt : Type = getExpressionType(valExpr, varTree);
+					arrit : Type = getArrayIndexType(arrt);
+					arrvt : Type = getArrayValueType(arrt);
+					if (sameType(it, arrit)) {
+						if (sameType(vt, arrvt)) {
+							true;
+						}
+						else {
+							println("[ERROR] UPD value expression type differs from array value type!");
+							false;
+						}
+					}
+					else {
+						println("[ERROR] UPD index expression type differs from array index type!");
+						false;
+					}
+				}
+				else {
+					println("[ERROR] Index type or Value type is incorrect!");
+					false;
+				}
+			}
+			else {
+				println("[ERROR] first operand in UPD is not an array!");
+				false;
+			}
+		}
+		APP(arr, indExpr): {
+			arrc : bool = checkExpressionCorrectness(arr, varTree);
+			arrt : Type = getExpressionType(arr, varTree);
+			if (isArrayType(arrt)) {
+				if (checkExpressionCorrectness(indExpr, varTree)) {
+					it : Type = getExpressionType(indExpr, varTree);
+					arrit : Type = getArrayIndexType(arrt);
+					if (sameType(it, arrit)) {
+						true;
+					}
+					else {
+						println("[ERROR] APP value expression type differs from array value type!");
+						false;
+					}
+				}
+				else {
+					false;
+				}
+			}
+			else {
+				false;
+			}
+		}
+	}
+}
+
+checkBoolExpressionCorrectness(boolExp : flow, varTree : Tree<string, Type>) -> bool {
+	switch (boolExp : BooleanExpression) {
+		And(be1, be2): {
+			be1c : bool = checkBoolExpressionCorrectness(be1, varTree);
+			be2c : bool = checkBoolExpressionCorrectness(be2, varTree);
+			be1c && be2c;
+		}
+		Or(be1, be2): {
+			be1c : bool = checkBoolExpressionCorrectness(be1, varTree);
+			be2c : bool = checkBoolExpressionCorrectness(be2, varTree);
+			be1c && be2c;
+		}
+		Not(be): {
+			checkBoolExpressionCorrectness(be, varTree);
+		}
+		Inequality(): {
+			switch (boolExp : Inequality) {
+				Less(e1, e2): {
+					e1c : bool = checkExpressionCorrectness(e1, varTree);
+					e2c : bool = checkExpressionCorrectness(e2, varTree);
+					if (e1c && e2c) {
+						e1t : Type = getExpressionType(e1, varTree);
+						e2t : Type = getExpressionType(e2, varTree);
+						if (isIntType(e1t) && isIntType(e2t)) {
+							true;
+						}
+						else {
+							println("[ERROR] Less operands are not integers!");
+							false;
+						}
+					}
+					else {
+						false;
+					}
+				}
+				Equal(e1, e2): {
+					e1c : bool = checkExpressionCorrectness(e1, varTree);
+					e2c : bool = checkExpressionCorrectness(e2, varTree);
+					if (e1c && e2c) {
+						e1t : Type = getExpressionType(e1, varTree);
+						e2t : Type = getExpressionType(e2, varTree);
+						if (isIntType(e1t) && isIntType(e2t)) {
+							true;
+						}
+						else {
+							println("[ERROR] Equal operands are not integers!");
+							false;
+						}
+					}
+					else {
+						false;
+					}
+				}
+				Greater(e1, e2): {
+					e1c : bool = checkExpressionCorrectness(e1, varTree);
+					e2c : bool = checkExpressionCorrectness(e2, varTree);
+					if (e1c && e2c) {
+						e1t : Type = getExpressionType(e1, varTree);
+						e2t : Type = getExpressionType(e2, varTree);
+						if (isIntType(e1t) && isIntType(e2t)) {
+							true;
+						}
+						else {
+							println("[ERROR] Greater operands are not integers!");
+							false;
+						}
+					}
+					else {
+						false;
+					}
+				}
+				LeQ(e1, e2): {
+					e1c : bool = checkExpressionCorrectness(e1, varTree);
+					e2c : bool = checkExpressionCorrectness(e2, varTree);
+					if (e1c && e2c) {
+						e1t : Type = getExpressionType(e1, varTree);
+						e2t : Type = getExpressionType(e2, varTree);
+						if (isIntType(e1t) && isIntType(e2t)) {
+							true;
+						}
+						else {
+							println("[ERROR] Less or Equal operands are not integers!");
+							false;
+						}
+					}
+					else {
+						false;
+					}
+				}
+				GeQ(e1, e2): {
+					e1c : bool = checkExpressionCorrectness(e1, varTree);
+					e2c : bool = checkExpressionCorrectness(e2, varTree);
+					if (e1c && e2c) {
+						e1t : Type = getExpressionType(e1, varTree);
+						e2t : Type = getExpressionType(e2, varTree);
+						if (isIntType(e1t) && isIntType(e2t)) {
+							true;
+						}
+						else {
+							println("[ERROR] Greater or Equal operands are not integers!");
+							false;
+						}
+					}
+					else {
+						false;
+					}
+				}
+			}
+		}
+	}
+}
+
+sequenceHaveTestAtTheBeginning(body : flow) {
+	switch (body : Body) {
+		Sequence(bodies): {
+			isConditionBody(bodies[0]);
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+checkBodyCorrectness(body : flow, varTree : Tree<string, Type>) -> bool {
+	switch (body : Body) {
+		Empty(): {
+			true;
+		}
+		Condition(cond): {
+			checkBoolExpressionCorrectness(cond, varTree);
+		}
+		Sequence(bodies): {
+			fold(
+				bodies,
+				true,
+				\res, elem -> {
+					res && checkBodyCorrectness(elem, varTree);
+				}
+			);
+		}
+		Assign(var, expr): {
+			vc : bool = checkExpressionCorrectness(var, varTree);
+			ec : bool = checkExpressionCorrectness(expr, varTree);
+			if (vc && ec) {
+				vt : Type = getExpressionType(var, varTree);
+				et : Type = getExpressionType(expr, varTree);
+				if (sameType(vt, et)) {
+					true;
+				}
+				else {
+					println("[ERROR] Assign operands have different types!");
+					false;
+				}
+			}
+			else {
+				false;
+			}
+		}
+		Show(var): {
+			vc : bool = checkExpressionCorrectness(var, varTree);
+			if (vc) {
+				vt : Type = getExpressionType(var, varTree);
+				if (isIntType(vt)) {
+					true;
+				}
+				else {
+					println("[ERROR] Only integer variables can be shown!");
+					false;
+				}
+			}
+			else {
+				false;
+			}
+		}
+		Iteration(bodies): {
+			fold(
+				bodies,
+				true,
+				\res, elem -> {
+					res && checkBodyCorrectness(elem, varTree);
+				}
+			);
+		}
+		Choice(bodies): {
+			bodiesAreSequences : bool = fold(
+				bodies,
+				true,
+				\res, elem -> {
+					res && isSequenceBody(elem);
+				}
+			);
+
+			if (bodiesAreSequences) {
+				sequencesHaveTestsAtTheBeginning : bool = fold(
+					bodies,
+					true,
+					\res, elem -> {
+						res && sequenceHaveTestAtTheBeginning(elem);
+					}
+				);
+				
+				if (sequencesHaveTestsAtTheBeginning) {
+					fold(
+						bodies,
+						true,
+						\res, elem -> {
+							res && checkBodyCorrectness(elem, varTree);
+						}
+					);
+				}
+				else {
+					println("[ERROR] Choice operand must have test in the beginning!");
+					false;
+				}
+			}
+			else {
+				println("[ERROR] Choice operands must be only sequences!");
+				false;
+			}
+		}
+	}
+}
+
+checkCorrectness(nemoProgram : Program) -> bool {
+	varTree : Tree<string, Type> = makeVariableTree(nemoProgram);
+	checkBodyCorrectness(nemoProgram.body, varTree);
+}

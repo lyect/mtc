@@ -1,0 +1,211 @@
+import nemo/nemo_head;
+
+export {
+	combineTypes(t1 : Type, t2 : Type) -> Type;
+
+	isIntType(t : Type) -> bool;
+
+	isArrayType(t : Type) -> bool;
+
+	getArrayIndexType(arrt : Type) -> Type;
+
+	getArrayValueType(arrt : Type) -> Type;
+
+	sameType(t1 : Type, t2 : Type) -> bool;
+
+	getArrayExpressionType(array : flow) -> Type;
+
+	getExpressionType(expr : flow, varTree : Tree<string, Type>) -> Type;
+
+	isSequenceBody(body : flow) -> bool;
+
+	isConditionBody(body : flow) -> bool;
+
+	isUPDExpression(expr : flow) -> bool;
+
+	isAPPExpression(expr : flow) -> bool;
+}
+
+combineTypes(t1 : Type, t2 : Type) -> Type {
+	if (sameType(t1, t2)) {
+		t1;
+	}
+	else {
+		UnknownType();
+	}
+}
+
+isIntType(t : Type) -> bool {
+	switch (t) {
+		IntType(): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+isArrayType(t : Type) -> bool {
+	switch (t) {
+		ArrayType(indexType, valueType): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+getArrayIndexType(arrt : Type) -> Type {
+	switch (arrt) {
+		ArrayType(indexType, valueType): {
+			indexType;
+		}
+		default: {
+			UnknownType();
+		}
+	}
+}
+
+getArrayValueType(arrt : Type) -> Type {
+	switch (arrt) {
+		ArrayType(indexType, valueType): {
+			valueType;
+		}
+		default: {
+			UnknownType();
+		}
+	}
+}
+
+sameType(t1 : Type, t2 : Type) -> bool {
+	switch (t1) {
+		IntType(): {
+			switch (t2) {
+				IntType(): {
+					true;
+				}
+				default: {
+					false;
+				}
+			}
+		}
+		ArrayType(indexType1, valueType1): {
+			switch (t2) {
+				ArrayType(indexType2, valueType2): {
+					sameType(indexType1, indexType2) && sameType(valueType1, valueType2);
+				}
+				default: {
+					false;
+				}
+			}
+		}
+		UnknownType(): {
+			false;
+		}
+	}
+}
+
+getArrayExpressionType(array : flow) -> Type {
+	arrNest : int = countArrayExpressionNestingLevel(array);
+	if (arrNest == -1) {
+		UnknownType();
+	}
+	else {
+		fold(
+			arrayRepeat(IntType(), arrNest),
+			IntType(),
+			\res, elem -> {
+				ArrayType(elem, res);
+			}
+		);
+	}
+}
+
+getExpressionType(expr : flow, varTree : Tree<string, Type>) -> Type {
+	switch (expr : Expression) {
+		Array(value): {
+			getArrayExpressionType(expr);
+		}
+		Int(value): {
+			IntType();
+		}
+		Var(name): {
+			lookupTreeDef(varTree, name, UnknownType());
+		}
+		Sum(e1, e2): {
+			e1t : Type = getExpressionType(e1, varTree);
+			e2t : Type = getExpressionType(e2, varTree);
+			combineTypes(e1t, e2t);
+		}
+		Sub(e1, e2): {
+			e1t : Type = getExpressionType(e1, varTree);
+			e2t : Type = getExpressionType(e2, varTree);
+			combineTypes(e1t, e2t);
+		}
+		Mul(e1, e2): {
+			e1t : Type = getExpressionType(e1, varTree);
+			e2t : Type = getExpressionType(e2, varTree);
+			combineTypes(e1t, e2t);
+		}
+		Div(e1, e2): {
+			e1t : Type = getExpressionType(e1, varTree);
+			e2t : Type = getExpressionType(e2, varTree);
+			combineTypes(e1t, e2t);
+		}
+		UPD(arr, indExpr, valExpr): {
+			getExpressionType(arr, varTree);
+		}
+		APP(arr, indExpr): {
+			getArrayValueType(
+				getExpressionType(arr, varTree)
+			);
+		}
+	}
+}
+
+isSequenceBody(body : flow) -> bool {
+	switch (body : Body) {
+		Sequence(bodies): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+isConditionBody(body : flow) -> bool {
+	switch (body : Body) {
+		Condition(cond): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+isUPDExpression(expr : flow) -> bool {
+	switch (expr : Expression) {
+		UPD(arr, indExpr, valExpr): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+
+isAPPExpression(expr : flow) -> bool {
+	switch (expr : Expression) {
+		APP(arr, indExpr): {
+			true;
+		}
+		default: {
+			false;
+		}
+	}
+}
+

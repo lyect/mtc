@@ -1,0 +1,272 @@
+import lingo/pegcode/driver;
+import fs/filesystem;
+import ds/array;
+
+import nemo/nemovm_head;
+
+buildArrayConstExpression(aces : [flow]) -> flow {
+	if (length(aces) == 0) {
+		Array([]);
+	}
+	else {
+		Array(concat(v2a(aces[0]), aces[1]));
+	}
+}
+
+nemovm_parse(nemovmProgramString : string) -> VMProgram {
+	nemovmGrammarOp : ref Maybe<[PegOp]> = ref None();
+	
+	specialSemanticActions : [Pair<string, ([flow]) -> flow>] = [
+		Pair("buildArrayConstExpression", buildArrayConstExpression),
+	];
+	
+	specialPegActions = {
+		specialSemanticActionsTree = fold(
+			specialSemanticActions,
+			defaultPegActions.t,
+			\tree, semanticAction -> {
+				setTree(
+					tree,
+					firstOfPair(semanticAction),
+					secondOfPair(semanticAction)
+				)
+			}
+		);
+
+		SemanticActions(specialSemanticActionsTree);
+	}
+	
+	cast(
+		parsic(
+			onlyOnce(
+				nemovmGrammarOp, \ -> {
+					compilePegGrammar("#include lib/nemo/nemovm_grammar.lingo");
+				}
+			),
+			nemovmProgramString,
+			specialPegActions
+		) : flow -> VMProgram
+	)
+}
+
+evaluateArrayExpression(arrayExpr : Array) -> flow {
+	if (length(arrayExpr.value) == 0) {
+		makeTree();
+	}
+	else {
+		foldi(
+			arrayExpr.value,
+			makeTree(),
+			\i, tree, elem -> {
+				setTree(
+					tree,
+					i,
+					elem
+				);
+			}
+		)
+	}
+}
+
+evaluateExpression(expr : Expression, varTree : Tree<string, flow>) -> flow {
+	switch (expr) {
+		Array(value): {
+			evaluateArrayExpression(expr);
+		}
+		Int(value): {
+			value;
+		}
+		Var(name): {
+			lookupTreeDef(
+				varTree,
+				name,
+				-1 // impossible
+			);
+		}
+		Sum(e1, e2): {
+			evalExpr1 : flow = evaluateExpression(e1, varTree);
+			evalExpr2 : flow = evaluateExpression(e2, varTree);
+			evalExpr1 + evalExpr2;
+		}
+		Sub(e1, e2): {
+			evalExpr1 : flow = evaluateExpression(e1, varTree);
+			evalExpr2 : flow = evaluateExpression(e2, varTree);
+			evalExpr1 - evalExpr2;
+		}
+		Mul(e1, e2): {
+			evalExpr1 : flow = evaluateExpression(e1, varTree);
+			evalExpr2 : flow = evaluateExpression(e2, varTree);
+			evalExpr1 * evalExpr2;
+		}
+		Div(e1, e2): {
+			evalExpr1 : flow = evaluateExpression(e1, varTree);
+			evalExpr2 : flow = evaluateExpression(e2, varTree);
+			evalExpr1 / evalExpr2;
+		}
+		UPD(arr, indExpr, valExpr): {
+			evalIndExpr : flow = evaluateExpression(indExpr, varTree);
+			evalValExpr : flow = evaluateExpression(valExpr, varTree);
+
+			// Find array tree in varTree and add new entry to it or
+			//	rewrite old value for key arr.name.
+			setTree(
+				lookupTreeDef(
+					varTree,
+					arr.name,
+					makeTree() // impossible
+				),
+				evalIndExpr,
+				evalValExpr
+			);
+		}
+		APP(arr, indExpr): {
+
+			evalIndExpr : flow = evaluateExpression(indExpr, varTree);
+
+			arrTree : Tree<flow, flow> = lookupTreeDef(
+				varTree,
+				arr.name,
+				makeTree() // impossible
+			);
+			if (containsKeyTree(arrTree, evalIndExpr)) {
+				lookupTreeDef(
+					arrTree,
+					evalIndExpr,
+					-1 // impossible
+				);
+			}
+			else {
+				fail0("[ERROR] Array have nothing by index!");
+			}
+		}
+	}
+}
+
+evaluateCondition(cond : flow, varTree : Tree<string, flow>) -> bool {
+	switch (cond : ConditionExpression) {
+		And(ce1, ce2): {
+			evaluateCondition(ce1, varTree) && evaluateCondition(ce2, varTree);
+		}
+		Or(ce1, ce2): {
+			evaluateCondition(ce1, varTree) || evaluateCondition(ce2, varTree);
+		}
+		Not(ce): {
+			!evaluateCondition(ce, varTree);
+		}
+		Inequality(): {
+			switch (cond : Inequality) {
+				Less(e1, e2): {
+					evaluateExpression(e1, varTree) < evaluateExpression(e2, varTree);
+				}
+				Equal(e1, e2): {
+					evaluateExpression(e1, varTree) == evaluateExpression(e2, varTree);
+				}
+				Greater(e1, e2): {
+					evaluateExpression(e1, varTree) > evaluateExpression(e2, varTree);
+				}
+				LeQ(e1, e2): {
+					evaluateExpression(e1, varTree) <= evaluateExpression(e2, varTree);
+				}
+				GeQ(e1, e2): {
+					evaluateExpression(e1, varTree) >= evaluateExpression(e2, varTree);
+				}
+			}
+		}
+	}
+}
+
+executeOperator(
+	op : Operator,
+	programTree : Tree<int, flow>,
+	varTree : Tree<string, flow>
+) -> void {
+	switch (op) {
+		CNOP(mk, var, expr, gtmk): {
+
+			evalExp : flow = evaluateExpression(
+				expr,
+				varTree
+			);
+
+			newVarTree : Tree<string, flow> = setTree(
+				varTree,
+				var.name,
+				evalExp
+			);
+
+			if (containsKeyTree(programTree, gtmk.value)) {
+				executeOperator(
+					lookupTreeDef(programTree, gtmk.value, -1),
+					programTree,
+					newVarTree
+				);
+			}
+			else {
+				quit(0);
+			}
+		}
+		CLOP(mk, cond, tmk, fmk): {
+			evalCond : bool = evaluateCondition(
+				cond,
+				varTree
+			);
+
+			if (evalCond) {
+				if (containsKeyTree(programTree, tmk.value)) {
+					executeOperator(
+						lookupTreeDef(programTree, tmk.value, -1),
+						programTree,
+						varTree
+					)
+				}
+				else {
+					quit(0);
+				}
+			}
+			else {
+				if (containsKeyTree(programTree, fmk.value)) {
+					executeOperator(
+						lookupTreeDef(programTree, fmk.value, -1),
+						programTree,
+						varTree
+					)
+				}
+				else {
+					quit(0);
+				}
+			}
+		}
+		SOP(mk, var, gtmk): {
+			println(
+				lookupTreeDef(
+					varTree,
+					var.name,
+					-1 // impossible
+				)
+			);
+
+			if (containsKeyTree(programTree, gtmk.value)) {
+				executeOperator(
+					lookupTreeDef(programTree, gtmk.value, -1),
+					programTree,
+					varTree
+				);
+			}
+			else {
+				quit(0);
+			}
+		}
+	}
+}
+
+execute(nemoVMProgram : VMProgram) -> void {
+	programTree : Tree<int, flow> = makeProgramTree(nemoVMProgram);
+	executeOperator(nemoVMProgram.operators[0], programTree, makeTree());
+}
+
+main() {
+	nemoVMProgramFilePath : string = strsubsmart(readUntil("\n"), 0, -1);
+	nemoVMProgram : string = getFileContent(nemoVMProgramFilePath);
+	parsedVMProgram : VMProgram = nemovm_parse(nemoVMProgram);
+	execute(parsedVMProgram);
+}
