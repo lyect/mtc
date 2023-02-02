@@ -41,5 +41,5 @@ Task list:
 The main task - write a compiler for NeMo.
 This task was done in a big rush due to end of a semester. So, code is fetid. That's the reason why I don't want to add it.
 
-## Block #4 : Formal verification for nemo
+## Block #4 : Formal verification for NeMo
 This block was not done.
