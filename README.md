@@ -10,6 +10,8 @@ Tasks were splitted between four blocks. Here is the list of blocks:
   * NeMo language (from russian "**Не**детерминированный **Мо**дельный язык")
   * Formal verification for HeMo
 
+Here is the list of solved blocks of tasks:
+
 ## Block #1 : Getting to know flow9
 This block contains simple tasks for getting to know the flow9.
 Task list:
@@ -34,3 +36,10 @@ Task list:
   * **(9)** Add powers, division and substraction.
   * **(10)** Make function for simplifying expressions.
   * **(11)** Add derivatives.
+  
+## Block #3 : NeMo language
+The main task - write a compiler for NeMo.
+This task was done in a big rush due to end of a semester. So, code is fetid. That's the reason why I don't want to add it.
+
+## Block #4 : Formal verification for nemo
+This block was not done.
